@@ -1,0 +1,21 @@
+Package: AGREL
+Type: Package
+Title: Package for calculating agreement/reliability indices
+Version: 0.1.0
+Author: De Cock Bavo
+Maintainer: De Cock Bavo <bavo.decock@kuleuven.be>
+Description: Contains functions to compute Cohen's Kappa, Fleiss' Kappa, Gwet's
+    AC1 and AC2, Krippendorf's alpha, Conger's kappa, Brennan-Prediger coefficient,
+    as well as a function to compute a matrix with Kappa-type coefficients for
+    assessing the reliability of nominal scales.
+License: GPL (>= 3)
+Encoding: UTF-8
+LazyData: true
+Depends:
+    doParallel,
+    bootstrap,
+    psych
+RoxygenNote: 6.0.1
+Suggests: knitr,
+    rmarkdown
+VignetteBuilder: knitr

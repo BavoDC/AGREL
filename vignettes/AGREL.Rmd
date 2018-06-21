@@ -1,0 +1,338 @@
+---
+title: "Agreement and reliability analysis using AGREL"
+author: "De Cock Bavo"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Agreement and reliability analysis using AGREL}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# 1. Introduction
+In this document, the various functions of the AGREL package will be explained and illustrated. The AGREL package contains functions for calculating agreement and reliability. With regard to agreement, the following statistics can be calculated:
+
+* Overall proportion of agreement
+* Specific agreement
+
+For reliability:
+
+* Cohen's kappa
+* Weighted kappa
+* Fleiss' kappa
+* Matrix of kappa-type coefficients
+* Bland-Altman plot for multiple observers
+
+More functions to calculate the agreement and reliability will be added in the future. 
+
+
+# 2. Agreement indices
+
+Agreement statistics are an absolute measure of agreement. They indicate how similar the observed ratings are and hence, are to be used when one wants the quantify the amount of agreement. For example, if two doctors diagnosed $N$ patients and we want to know the proportion of similar diagnoses.
+
+To illustrate the calculation of the overall proportion of agreement and specific agreement, we will use the example of de Vet et al. (2017). In this example, 4 surgeons rated the photographs of breasts of 50 women after breast reconstruction. The original five-point ordinal scale was dichotomized into satisfied and dissatisfied.
+
+## 2.1 Two raters, dichotomous variable
+
+For the first example, we only take the data from the first two surgeons and refer to the surgeons as rater A and rater B. The results are depicted in the following two-by-two table:
+
+```{r, results = 'asis', echo = F, message = F, warnings = F}
+library(knitr)
+library(AGREL)
+library(htmlTable)
+options(table_counter = TRUE)
+data("Agreement_deVetArticle")
+tmp = Agreement_deVetArticle[,c(1,2)]
+for(i in 1:2) tmp[,i] = factor(tmp[,i], level=c("Satisfied", "Dissatisfied"), ordered=T)
+TableExample = table(tmp, dnn = c("Rater A", "Rater B"))
+TableExample = addmargins(TableExample)
+rownames(TableExample) <- sprintf('<b>%s</b>', rownames(TableExample))
+print(htmlTable(TableExample, rowlabel = "Rater A", cgroup = c("Rater B",""), n.cgroup = c(2,1),
+                align = "lccc", caption = "Two raters, dichotomous variable"))
+```
+
+
+This table can be constructed as follows
+
+```{r}
+data("Agreement_deVetArticle")
+tmp = Agreement_deVetArticle[,c(1,2)]
+for(i in 1:2) tmp[,i] = factor(tmp[,i], level=c("Satisfied", "Dissatisfied"), ordered=T)
+TableExample = table(tmp, dnn = c("Rater A", "Rater B"))
+TableExample = addmargins(TableExample)
+TableExample
+```
+
+To calculate the specific agreement ($P_s$) and overall proportion of agreement ($P_o$), we can use the $\verb|DiagnosticAgreement.deVet()|$ function from the package. The methodology to calculate $P_s$ and $P_o$ is described in de Vet et al. (2013). A dataframe or matrix serves as the input, where the columns contain the ratings of each of the raters. Hence, an $N \times P$ dataframe or matrix is given as input with $N$ the number of subjects and $P$ the number of raters. 
+
+```{r}
+head(tmp)
+Results1 = DiagnosticAgreement.deVet(tmp)
+Results1
+```
+
+Note that the summed table is not the same as table 1. This is important as it depicts the table as described in de Vet et al. (2017) and this will be explained more in detail in section 2.2.
+
+We can indicate whether confidence intervals (CI) for $P_s$ and $P_o$ have to be calculated using the logical argument $\verb|CI|$ and the confidence level can be changed in the argument $\verb|ConfLevel|$. Different methods can be used to calculate the CI, namely the continuity correction, Fleiss correction or by use of the bootstrap methodology. The default method for calculating CIs is the continuity correction and this can be changed by specifying the method in the argument $\verb|correction|$.
+
+```{r}
+DiagnosticAgreement.deVet(tmp, correction = "Fleiss")
+```
+
+If one wants to use the bootstrap methodology to calculate the CIs, the number of bootstrap samples to be taken can be specified and parallel computing can be used to get the results faster. The latter is recommended only in cases of a large dataframe.
+
+```{r}
+DiagnosticAgreement.deVet(tmp, correction = "bootstrap", NrBoot = 500)
+```
+
+
+## 2.2 More than two raters, dichotomous variable
+
+In case of more than two raters, the same function can be used and the method to calculate $P_s$ and $P_o$ is described in de Vet et al. (2017).
+
+Asssume that we now have the results of a third rater, rater C. Since we now have 3 raters, 3 two-by-two tables can be constructed:
+$$
+\frac{m(m - 1)}{2}\\
+= \frac{3 \times 2}{2} = 3
+$$
+where $m$ is the number of raters. We already have the table for rater A versus rater B. The other two tables are those for rater A versus rater C and rater B versus rater C.
+
+```{r, results='asis', echo = F, message = F, warnings = F}
+tmp = Agreement_deVetArticle[,c(1,4)]
+for(i in 1:2) tmp[,i] = factor(tmp[,i], level=c("Satisfied", "Dissatisfied"), ordered=T)
+TableExample2 = table(tmp)
+TableExample2 = addmargins(TableExample2)
+rownames(TableExample2) <- sprintf('<b>%s</b>', rownames(TableExample2))
+print(htmlTable(TableExample2, rowlabel = "Rater A", cgroup = c("Rater C",""), n.cgroup = c(2,1),
+                align = "lccc", caption = "> 2 raters, dichotomous variable"))
+
+tmp = Agreement_deVetArticle[,c(2,4)]
+for(i in 1:2) tmp[,i] = factor(tmp[,i], level=c("Satisfied", "Dissatisfied"), ordered=T)
+TableExample3 = table(tmp)
+TableExample3 = addmargins(TableExample3)
+rownames(TableExample3) <- sprintf('<b>%s</b>', rownames(TableExample3))
+print(htmlTable(TableExample3, rowlabel = "Rater B", cgroup = c("Rater C",""), n.cgroup = c(2,1),
+                align = "lccc", caption = "> 2 raters, dichotomous variable"))
+```
+
+The above tables can be reproduced using
+```{r}
+# 3 raters
+
+# A vs C
+tmp = Agreement_deVetArticle[,c(1,4)]
+for(i in 1:2) tmp[,i] = factor(tmp[,i], level=c("Satisfied", "Dissatisfied"), ordered=T)
+TableExample2 = table(tmp)
+TableExample2 = addmargins(TableExample2)
+TableExample2
+
+# B vs C
+tmp = Agreement_deVetArticle[,c(2,4)]
+for(i in 1:2) tmp[,i] = factor(tmp[,i], level=c("Satisfied", "Dissatisfied"), ordered=T)
+TableExample3 = table(tmp)
+TableExample3 = addmargins(TableExample3)
+TableExample3
+```
+
+Using the results from these 3 raters, we can calculate the $P_s$ and $P_o$ using
+```{r}
+DiagnosticAgreement.deVet(Agreement_deVetArticle[,c(1:2,4)])
+```
+
+
+## 2.3 More than 2 raters, multinomial variable
+
+When the variable is multinomial, the $P_s$ and $P_o$ can be calculated using the methodology of Uebersax (1982). Note that this function can also be used in case of a dichotomous variable and/or when there are only 2 raters.
+
+For this example, we use the data of Fleiss (1971) where 6 psychiatrist diagnosed 30 patients. Possible diagnoses were depression, personality disorder, schizophrenia, neurosis and other. To calculate $P_s$ and $P_o$, we use the function $\verb|AgreemGeneralizedVector()|$. Note that this as a temporary function which gives a minimum of output. A more detailed and advanced function will be made public in the future after publication on a new methodology to assess specific agreement.
+
+```{r}
+data("PsychMorbid")
+AgreemGeneralizedVector(PsychMorbid)
+```
+
+
+# 3. Reliability
+
+In contrast to agreement, reliability is a relative measure. Reliability indicates how reliable a measurement method is to make a distinction between subjects. Hence, if one wants to know to what extent a measurement can differentiate between subjects, reliability statistics have to be used.
+
+## 3.1 Cohen's Kappa
+In case of two raters, one can use Cohen's Kappa (Cohen, 1960). We can, for example, take the ratings of the first 2 raters of the $\verb|PsychMorbid|$ dataset.
+
+```{r}
+Df = PsychMorbid[,1:2]
+CohenK(Df)
+```
+
+The most important information is printed in the R console. More detailed information can be obtained when the output is stored in an object and information regarding the output can be found in the help file of $\verb|CohenK()|$.
+
+```{r}
+?CohenK
+ResultsCohenK = CohenK(Df)
+str(ResultsCohenK)
+```
+
+
+Confidence intervals of Cohen's Kappa can be calculated using the jackknife method (Fleiss and Davies, 1982).
+
+```{r}
+ConfintJack(ResultsCohenK)
+```
+
+## 3.2 Weighted Kappa
+When the variable is ordinal (and the number of raters equals 2), weighted kappa has to be used (Cohen, 1968). The rationale for weighted kappa is that, in case of ordinal variables, a difference between the ratings 2 and 3 is less severe than a difference between the ratings 1 and 5. Consequently, the pairs of ratings can be given a weight and the value of the weight is dependent on how close the ratings are. If the ratings are identical, a maximal weight of 1 is given and the weights decreases as the ratings diverge from each other.
+
+```{r}
+data(Agreement_deVet)
+CohenK(Agreement_deVet[,2:3], weight = "squared")
+```
+
+As with Cohen's Kappa, more detailed information can be obtained by storing the output in an object and the confidence intervals can be calculated.
+
+## 3.3 Fleiss' Kappa
+Cohen's Kappa was later extended to scenarios with multiple raters by Fleiss (1971). To illustrate its use, we can use the dataset from the original article.
+
+```{r}
+data(PsychMorbid)
+FleissK(PsychMorbid)
+```
+
+
+Similar to the function $\verb|CohenK()|$, detailed information can be obtained by storing the output in an object and the $\verb|ConfintJack()|$ function can be used to get the confidence intervals of Fleiss' Kappa.
+
+```{r}
+ResultsFleissK = FleissK(PsychMorbid)
+str(ResultsFleissK)
+ConfintJack(ResultsFleissK)
+```
+
+
+## 3.4 Matrix of Kappa-type coefficients
+If more detailed information on the reliability of a measurement method is desired, we can calculate the Kappa-matrix as described in Roberts and McNamee (1998). Using this matrix, an extensive summary is given of the reliability. The diagonal elements show the kappa coefficients for each of the categories relative to the others and the off-diagonal elements are measures of confusion between categories. The dataset of Fleiss (1971) will be used to illustrate this methodology.
+
+```{r}
+KMatrix = Kappa.Matrix(PsychMorbid)
+round(KMatrix$KappaMatrix, 3)
+```
+
+The results indicate that reliability is highest for the category other (0.566) and lowest for the categories depression and personality disorder (0.245 for both). The upper off-diagonal elements of the matrix are measures of confusion between pairs of categories and are referred to as the interclass kappa coefficient. Values equal to 1 indicate that there is no confusion between categories. For example, $\kappa_{jk}$ with $j$ neurosis and $k$ schizophrenia is equal to 0.935 and thus, the results would indicate that the raters are able to distinguish between patients with diagnoses other and neurosis.
+
+The interpretation of the lower off-diagonal elements is less straightforward. These are the correlation coefficients and the opposite of the interclass kappa coefficients. The correlation coefficient is defined as
+
+$$
+\begin{equation}
+\begin{aligned}
+\lambda_{jk} &= corr[p_{ij}, p_{ik}]\\
+&= \frac{\sigma_{jk}}{[P_j (1- P_k) P_k (1 - P_k)]^{1/2}}
+\end{aligned}
+\end{equation}
+$$
+
+where $p_{ij}$ is the the proportion of raters who would classify the subject to category $j$ and $P_j$ is the proportion of allocation to category $j$. See Roberts and McNamee (1998) for detailed information.
+
+$\lambda_{jk}$ will be negative when classification to category $j$ excludes classification to category $k$. Consequently, this indicates that the confusion between the categories is minimal. When there is no confusion at all between the categories, $\lambda_{jk}$ equals
+
+$$
+\begin{equation}
+\begin{aligned}
+\text{min} \ \lambda_{jk} &= - \left[\frac{P_j P_k}{(1 - P_j) (1- P_k)}\right]^{1/2}
+\end{aligned}
+\end{equation}
+$$
+
+Conversely, when the categories tend to be confused, $\lambda_{jk}$ approaches 0 or is positive. The maximum value attainable is
+$$
+\begin{equation}
+\begin{aligned}
+\text{max} \ \lambda_{jk} &= \left[\frac{P_j (1 - P_k)}{P_k (1 - P_j)}\right]^{1/2}
+\end{aligned}
+\end{equation}
+$$
+
+Given that we have to explictly compare the $\lambda_{jk}$ value to its minimum and maximum value possible, this makes it a less attractive and easy-to-interpret statistic. The minimum and maximum possible $\lambda_{jk}$ values are also provided.
+
+```{r}
+# Minimum values possible 
+round(KMatrix$MinLambda, 3)
+
+# Maximum values possible
+round(KMatrix$MaxLambda, 3)
+```
+
+Note that the latter is not provided when parallel computing is used. This will be implemented in the future.
+
+## 3.5 Bland-Altman plot for multiple observers
+If the variable is continuous, reliability can be assessed by use of the intraclass correlation coefficient (ICC, see Shrouten and Fleiss, 1979) and graphically through use of Bland-Altman plots. However, Bland-Altman plots are restricted to scenarios where there are 2 raters and for this reason, Jones et al. (2011) extended the Bland-Altman plot to scenarios with multiple raters.
+
+To illustrate the modified Bland-Altman plot, we will use the same example as used in Jones et al. (2011). In this dataset, 4 dentists gave 10 patients a DMFS score.
+
+```{r, warning = F}
+data(DentalStudy)
+par(cex = 0.5, cex.lab = 0.75, cex.axis = 0.7)
+ModifBAplot = BAplotMultipleR(dentist, patient, DMFS, DentalStudy)
+par(cex = 1, cex.lab = 1, cex.axis = 1)
+```
+
+In modified Bland-Altman plots, the difference between the average score and the score given by the rater is calculated and plotted. The latter will be referred to as difference scores from here on out. Given that we are working with mean-centered values for each of the subjects, the average of the difference scores is 0 and this depicted in the plot by the dotted line. The limits of agreement (LoA) are given by the solid lines and indicate how different an individual rater can be when compared to the mean measurement of all raters. If, however, the variability of the difference scores increases with the magnitude of the measurement, the default LoA are not appropriate. We then propose to use the option $\verb|LoA="loess"|$, which gives the 2.5 and 97.5 percentile curves and this method is based on the method of Royston and Wright (1998).
+
+In addition to the plot, a summary of the two-way ANOVA model is given together with the different ICCs (Shrout and Fleiss, 1979). The results of the ANOVA model indicate whether or not there was a systematic difference between the raters and the ICCs quantify the reliability of the measurement method.
+
+```{r}
+ModifBAplot
+```
+
+# 4. Data transformation of the dataframe
+It may occur that the dataframe has to be transformed in order to be able to use the functions. For this reason, the function $\verb|TransfData()|$ was implemented. We assume that the current dataframe is in the long format and that there are separate variables indicating which subject was rated, which rater made the rating and the value of the rating.
+
+To illustrate this function, we generate some random data.
+```{r}
+Df = cbind.data.frame(ID = sort(rep(1:10, 4)), var = sample(letters[1:2], 40, T), raters = rep(paste("rater",1:4), 10))
+head(Df)
+```
+
+This dataframe is then given as input in the $\verb|TransfData()|$ function. Once the dataframe is transformed, we can use it as input for the functions of the package.
+
+```{r}
+NewDf = TransfData(ID, var, raters, Df)
+FleissK(NewDf)
+```
+
+
+
+
+# References
+
+Cohen, J. (1960). A Coefficient of Agreement for Nominal Scales. *Educational and Psychological Measurement*, **Vol.20**(1), pp.37-46
+
+Cohen, J. (1968). Weighted kappa: Nominal scale agreement provision for scaled disagreement or partial credit. *Psychological Bulletin*, **Vol.70**(4), pp.213-220
+
+de Vet, H.C.W., Dikmans, R.E., Eekhout, I. (2017). Specific agreement on dichotomous outcomes can be calculated for more than two raters. *Journal of Clinical Epidemiology*, **Vol.83**, pp.85-89
+
+de Vet, H.C.W., Mokkink L.B., Terwee C.B., Hoekstra O.S., Knol D.L. (2013). Clinicians are right not to like Cohen’s $\kappa$. *BMJ*, **Vol.346**
+
+Fleiss, J. L. (1971). Measuring nominal scale agreement among many raters. *Psychological Bulletin*, **Vol.76**(5), pp.378-382
+
+Fleiss, J.L., Davies, M. (1982). Jackknifing functions of multinomial frequencies, with an application to a measure of concordance. *Am J Epidemiol*, **Vol.115**, 841-845.
+
+Jones, M., Dobson, A., O'Brian, S. (2011). A graphical method for assessing agreement with the mean between multiple observers using continuous measures. 
+*Int J Epidemiol*, **Vol.40**, pp. 1308-1313.
+
+Roberts C., McNamee R. (1998). A matrix of kappa-type coefficients to assess the reliability of nominal scales. *Statistics in medicine*, **Vol.17**(4), pp.471-88
+
+Royston, P., Wright, E.M. (1988). How to construct 'normal ranges' for fetal variables. *Ultrasound Obstet Gynecol*, **Vol.11**: pp. 30-38
+
+Shrout, P.E., Fleiss, J.L. (1979). Intraclass correlations: Uses in assessing rater reliability. *Psychol Bull*, **Vol.86**, pp. 420-428
+
+Uebersax, J.S. (1982). A design-independent method for measuring the reliability of psychiatric diagnosis. *Journal of Psychiatric Research*, **Vol.17**(4), pp.335-342
+
+
+
+
+
+
+
+
+
+
